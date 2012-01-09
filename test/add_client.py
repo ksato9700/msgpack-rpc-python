@@ -14,8 +14,8 @@ class DummyLock:
     def release(self):
         pass
 
-lock = DummyLock()
-#lock = threading.Lock()
+#lock = DummyLock()
+lock = threading.Lock()
 
 def send_request(tid, address):
     client = msgpackrpc.Client(address)
@@ -23,7 +23,8 @@ def send_request(tid, address):
     b = random.randint(-sys.maxint/2, sys.maxint/2)
     try:
         lock.acquire()
-        result = client.call('add', tid, a, b)
+        ftr = client.call_async('add', tid, a, b)
+        result = ftr.get()
         lock.release()
         assert result == a+b
         print threading.current_thread().ident, "done"
