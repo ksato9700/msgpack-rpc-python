@@ -1,7 +1,7 @@
 import msgpack
 
 from msgpackrpc import inPy3k
-from msgpackrpc import loop
+from msgpackrpc import Loop
 from msgpackrpc import message
 from msgpackrpc.error import RPCError
 from msgpackrpc.future import Future
@@ -21,17 +21,17 @@ class Session(object):
     result to the corresponding future.
     """
 
-    def __init__(self, address, timeout, loop=loop.Loop(), builder=tcp):
+    def __init__(self, address, timeout, loop=None, builder=tcp, reconnect_limit=5, pack_encoding='utf-8', unpack_encoding=None):
         """\
         :param address: address of the server.
         :param loop:    context object.
         :param builder: builder for creating transport layer
         """
 
-        self._loop = loop
+        self._loop = loop or Loop()
         self._address = address
         self._timeout = timeout
-        self._transport = builder.build_transport(self)
+        self._transport = builder.ClientTransport(self, self._address, reconnect_limit, encodings=(pack_encoding, unpack_encoding))
         self._generator = _NoSyncIDGenerator()
         self._request_table = {}
 
@@ -72,12 +72,6 @@ class Session(object):
         Called by the transport layer.
         """
 
-        def _iteritems(dic): # ugly!!!!!!
-            if inPy3k:
-                return dic.items()
-            else:
-                return dic.iteritems()
-
         # set error for all requests
         #for msgid, future in self._request_table.iteritems():
         for msgid, future in _iteritems(self._request_table):
@@ -111,7 +105,7 @@ class Session(object):
 
     def step_timeout(self):
         timeouts = []
-        for msgid, future in self._request_table.iteritems():
+        for msgid, future in _iteritems(self._request_table):
             if future.step_timeout():
                 timeouts.append(msgid)
 
@@ -124,6 +118,11 @@ class Session(object):
             future.set_error("Request timed out")
         self._loop.start()
 
+def _iteritems(dic): # ugly!!!!!!
+    if inPy3k:
+        return dic.items()
+    else:
+        return dic.iteritems()
 
 def _NoSyncIDGenerator():
     """\

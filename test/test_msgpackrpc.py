@@ -4,6 +4,7 @@ import unittest
 import helper
 import msgpackrpc
 from msgpackrpc import inPy3k
+from msgpackrpc import error
 
 
 class TestMessagePackRPC(unittest.TestCase):
@@ -28,10 +29,7 @@ class TestMessagePackRPC(unittest.TestCase):
         self._thread = threading.Thread(target=_start_server, args=(self._server,))
         self._thread.start()
 
-        import time
-        time.sleep(1)
-
-        self._client = msgpackrpc.Client(self._address)
+        self._client = msgpackrpc.Client(self._address, unpack_encoding='utf-8')
         return self._client;
 
     def tearDown(self):
@@ -39,17 +37,44 @@ class TestMessagePackRPC(unittest.TestCase):
         self._server.stop();
         self._thread.join();
 
-    def test_hello(self):
+    def test_call(self):
         client = self.setup_env();
         result = client.call('hello')
-        if inPy3k:
-            result = result.decode("utf-8")
-        self.assertEqual(result, "world", "hello result is incorrect")
+        self.assertEqual(result, "world", "'hello' result is incorrect")
 
-    def test_add(self):
-        client = self.setup_env();
         result = client.call('sum', 1, 2)
-        self.assertEqual(result, 3, "sum result is incorrect")
+        self.assertEqual(result, 3, "'sum' result is incorrect")
+
+    def test_call_async(self):
+        client = self.setup_env();
+
+        feture1 = client.call_async('hello')
+        feture2 = client.call_async('sum', 1, 2)
+        feture1.join()
+        feture2.join()
+
+        self.assertEqual(feture1.result, "world", "'hello' result is incorrect in call_async")
+        self.assertEqual(feture2.result, 3, "'sum' result is incorrect in call_async")
+
+    def test_notify(self):
+        client = self.setup_env();
+        result = True
+        try:
+            client.notify('hello')
+            client.notify('sum', 1, 2)
+        except:
+            result = False
+        self.assertTrue(result)
+
+    def test_unknown_method(self):
+        client = self.setup_env();
+        self.assertRaises(error.RPCError, lambda: client.call('unknown', True))
+        try:
+            client.call('unknown', True)
+            self.assertTrue(False)
+        except error.RPCError as e:
+            message = e.args[0]
+            self.assertEqual(message, "'unknown' method not found", "Error message mismatched")
 
 
 if __name__ == '__main__':

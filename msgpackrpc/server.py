@@ -2,7 +2,7 @@ import msgpack
 
 from msgpackrpc import inPy3k
 from msgpackrpc import error
-from msgpackrpc import loop
+from msgpackrpc import Loop
 from msgpackrpc import message
 from msgpackrpc import session
 from msgpackrpc.transport import tcp
@@ -12,14 +12,15 @@ class Server(session.Session):
     Server is usaful for MessagePack RPC Server.
     """
 
-    def __init__(self, dispatcher, loop=loop.Loop(), builder=tcp):
-        self._loop = loop
+    def __init__(self, dispatcher, loop=None, builder=tcp, pack_encoding='utf-8', unpack_encoding=None):
+        self._loop = loop or Loop()
         self._builder = builder
+        self._encodings = (pack_encoding, unpack_encoding)
         self._listeners = []
         self._dispatcher = dispatcher
 
     def listen(self, address):
-        listener = self._builder.ServerTransport(address)
+        listener = self._builder.ServerTransport(address, self._encodings)
         listener.listen(self)
         self._listeners.append(listener)
 
@@ -41,10 +42,10 @@ class Server(session.Session):
 
     def dispatch(self, method, param, responder):
         try:
-            if inPy3k:
+            if inPy3k and not isinstance(method, str):
                 method = method.decode("utf-8")
             if not hasattr(self._dispatcher, method):
-                raise error.NoMethodError("{0} not found".format(method))
+                raise error.NoMethodError("'{0}' method not found".format(method))
             responder.set_result(getattr(self._dispatcher, method)(*param))
         except Exception as e:
             responder.set_error(str(e))
