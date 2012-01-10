@@ -14,8 +14,8 @@ class DummyLock:
     def release(self):
         pass
 
-#lock = DummyLock()
-lock = threading.Lock()
+lock = DummyLock()
+#lock = threading.Lock()
 
 def send_request(tid, address):
     client = msgpackrpc.Client(address)
